@@ -2121,17 +2121,41 @@
         let vistaConsultaActual = 'distrito';
         let cambiosDiasPendientes = {}; // Almacenar cambios en días pendientes
         
-        // Función para obtener el estado actual de un empleado
         function obtenerEstadoEmpleado(cedula) {
+            // Validar entrada
+            if (!cedula) {
+                return {
+                    estado: 'Desconocido',
+                    clase: 'estado-libre',
+                    icono: 'fa-question-circle',
+                    color: '#6c757d'
+                };
+            }
+            
             const hoy = new Date();
             hoy.setHours(0, 0, 0, 0);
             
+            // Validar que programaciones es un array
+            if (!Array.isArray(programaciones)) {
+                return {
+                    estado: 'Libre',
+                    clase: 'estado-libre',
+                    icono: 'fa-check-circle',
+                    color: '#6c757d'
+                };
+            }
+            
             // Buscar si está de vacaciones
-            const enVacaciones = programaciones.find(prog => 
-                prog.empleadoSalida.cedula === cedula &&
-                prog.fechaInicioObj <= hoy &&
-                prog.fechaFinObj >= hoy
-            );
+            const enVacaciones = programaciones.find(prog => {
+                try {
+                    return prog && prog.empleadoSalida && 
+                           prog.empleadoSalida.cedula === cedula &&
+                           prog.fechaInicioObj <= hoy &&
+                           prog.fechaFinObj >= hoy;
+                } catch (e) {
+                    return false;
+                }
+            });
             
             if (enVacaciones) {
                 return {
@@ -2143,11 +2167,16 @@
             }
             
             // Buscar si está reemplazando
-            const reemplazando = programaciones.find(prog => 
-                prog.empleadoReemplazo.cedula === cedula &&
-                prog.fechaInicioObj <= hoy &&
-                prog.fechaFinObj >= hoy
-            );
+            const reemplazando = programaciones.find(prog => {
+                try {
+                    return prog && prog.empleadoReemplazo && 
+                           prog.empleadoReemplazo.cedula === cedula &&
+                           prog.fechaInicioObj <= hoy &&
+                           prog.fechaFinObj >= hoy;
+                } catch (e) {
+                    return false;
+                }
+            });
             
             if (reemplazando) {
                 return {
@@ -2160,34 +2189,62 @@
             
             // Buscar si tiene vacaciones próximas (dentro de los próximos 7 días)
             const proximasSalida = programaciones.find(prog => {
-                const diasHasta = Math.ceil((prog.fechaInicioObj - hoy) / (1000 * 60 * 60 * 24));
-                return prog.empleadoSalida.cedula === cedula && diasHasta > 0 && diasHasta <= 7;
+                try {
+                    const diasHasta = Math.ceil((prog.fechaInicioObj - hoy) / (1000 * 60 * 60 * 24));
+                    return prog && prog.empleadoSalida && 
+                           prog.empleadoSalida.cedula === cedula && diasHasta > 0 && diasHasta <= 7;
+                } catch (e) {
+                    return false;
+                }
             });
             
             if (proximasSalida) {
-                const diasHasta = Math.ceil((proximasSalida.fechaInicioObj - hoy) / (1000 * 60 * 60 * 24));
-                return {
-                    estado: `Próximo a Salir (${diasHasta}d)`,
-                    clase: 'estado-proximo',
-                    icono: 'fa-calendar-alt',
-                    color: '#ffc107'
-                };
+                try {
+                    const diasHasta = Math.ceil((proximasSalida.fechaInicioObj - hoy) / (1000 * 60 * 60 * 24));
+                    return {
+                        estado: `Próximo a Salir (${diasHasta}d)`,
+                        clase: 'estado-proximo',
+                        icono: 'fa-calendar-alt',
+                        color: '#ffc107'
+                    };
+                } catch (e) {
+                    return {
+                        estado: 'Próximo a Salir',
+                        clase: 'estado-proximo',
+                        icono: 'fa-calendar-alt',
+                        color: '#ffc107'
+                    };
+                }
             }
             
             // Buscar si va a reemplazar pronto (dentro de los próximos 7 días)
             const proximoReemplazo = programaciones.find(prog => {
-                const diasHasta = Math.ceil((prog.fechaInicioObj - hoy) / (1000 * 60 * 60 * 24));
-                return prog.empleadoReemplazo.cedula === cedula && diasHasta > 0 && diasHasta <= 7;
+                try {
+                    const diasHasta = Math.ceil((prog.fechaInicioObj - hoy) / (1000 * 60 * 60 * 24));
+                    return prog && prog.empleadoReemplazo && 
+                           prog.empleadoReemplazo.cedula === cedula && diasHasta > 0 && diasHasta <= 7;
+                } catch (e) {
+                    return false;
+                }
             });
             
             if (proximoReemplazo) {
-                const diasHasta = Math.ceil((proximoReemplazo.fechaInicioObj - hoy) / (1000 * 60 * 60 * 24));
-                return {
-                    estado: `Próximo a Reemplazar (${diasHasta}d)`,
-                    clase: 'estado-proximo-reemplazo',
-                    icono: 'fa-clock',
-                    color: '#17a2b8'
-                };
+                try {
+                    const diasHasta = Math.ceil((proximoReemplazo.fechaInicioObj - hoy) / (1000 * 60 * 60 * 24));
+                    return {
+                        estado: `Próximo a Reemplazar (${diasHasta}d)`,
+                        clase: 'estado-proximo-reemplazo',
+                        icono: 'fa-clock',
+                        color: '#17a2b8'
+                    };
+                } catch (e) {
+                    return {
+                        estado: 'Próximo a Reemplazar',
+                        clase: 'estado-proximo-reemplazo',
+                        icono: 'fa-clock',
+                        color: '#17a2b8'
+                    };
+                }
             }
             
             // Si no tiene nada, está libre
@@ -2498,12 +2555,27 @@
                 
                 snapshot.forEach(doc => {
                     const data = doc.data();
-                    // Convertir fechas de vuelta a objetos Date
-                    programaciones.push({
-                        ...data,
-                        fechaInicioObj: new Date(data.fechaInicioObj),
-                        fechaFinObj: new Date(data.fechaFinObj)
-                    });
+                    try {
+                        // Convertir fechas de vuelta a objetos Date (ser seguro con valores undefined)
+                        let fechaInicio = data.fechaInicioObj;
+                        let fechaFin = data.fechaFinObj;
+                        
+                        // Si son strings ISO, convertir a Date
+                        if (typeof fechaInicio === 'string') {
+                            fechaInicio = new Date(fechaInicio);
+                        }
+                        if (typeof fechaFin === 'string') {
+                            fechaFin = new Date(fechaFin);
+                        }
+                        
+                        programaciones.push({
+                            ...data,
+                            fechaInicioObj: fechaInicio || new Date(),
+                            fechaFinObj: fechaFin || new Date()
+                        });
+                    } catch (parseError) {
+                        console.warn('Error al parsear programación:', data, parseError);
+                    }
                 });
                 
                 console.log(`${programaciones.length} programaciones cargadas desde la base de datos`);
@@ -2740,6 +2812,13 @@
         }
         
         function mostrarDatos(data) {
+            // Actualizar datosGlobales con los datos recibidos
+            datosGlobales = {
+                datos_por_mes: data.datos_por_mes,
+                datos_por_distrito: data.datos_por_distrito,
+                meses: data.meses
+            };
+            
             const datosSection = document.getElementById('datosSection');
             datosSection.style.display = 'block';
             datosSection.classList.add('show');
@@ -2748,7 +2827,7 @@
             document.getElementById('btnActualizar').style.display = 'flex';
             
             // Obtener lista de distritos
-            const distritosDisponibles = Object.keys(data.datos_por_distrito || {}).sort();
+            const distritosDisponibles = Object.keys(datosGlobales.datos_por_distrito || {}).sort();
             
             // Crear tabs por DISTRITO para vista por distrito
             const tabsContainer = document.getElementById('tabs');
@@ -2763,13 +2842,13 @@
             });
             
             // Crear tabs de meses dentro de la vista por distrito
-            crearTabsMesDistrito(data.meses);
+            crearTabsMesDistrito(datosGlobales.meses);
             
             // Crear tabs por mes para vista global
             const tabsGlobalContainer = document.getElementById('tabsGlobal');
             tabsGlobalContainer.innerHTML = '';
             
-            data.meses.forEach((mes, index) => {
+            datosGlobales.meses.forEach((mes, index) => {
                 const tab = document.createElement('button');
                 tab.className = 'tab' + (index === 0 ? ' active' : '');
                 tab.innerHTML = `<i class="fas fa-calendar-day"></i> ${mes}`;
@@ -2778,8 +2857,8 @@
             });
             
             // Guardar mes actual
-            if (data.meses.length > 0) {
-                mesActual = data.meses[0];
+            if (datosGlobales.meses.length > 0) {
+                mesActual = datosGlobales.meses[0];
             }
             
             // Mostrar primer distrito
@@ -5141,6 +5220,16 @@
         }
         
         function mostrarDistrito(distrito) {
+            console.log('Mostrando distrito:', distrito);
+            console.log('datosGlobales:', datosGlobales);
+            
+            // Validar que datosGlobales existe
+            if (!datosGlobales || !datosGlobales.datos_por_distrito) {
+                console.error('datosGlobales no está correctamente inicializado');
+                document.getElementById('contenido').innerHTML = '<p style="text-align: center; color: #666; padding: 40px; font-size: 1.2em;"><i class="fas fa-exclamation-circle"></i> Error: Los datos no se cargaron correctamente</p>';
+                return;
+            }
+            
             distritoActual = distrito;
             
             // Actualizar tabs de distrito
@@ -5157,6 +5246,8 @@
             
             // Obtener datos del distrito seleccionado
             const datosDistrito = datosGlobales.datos_por_distrito[distrito];
+            
+            console.log('Datos del distrito:', datosDistrito);
             
             if (!datosDistrito) {
                 contenido.innerHTML = '<p style="text-align: center; color: #666; padding: 40px; font-size: 1.2em;"><i class="fas fa-info-circle"></i> No hay datos disponibles para este distrito</p>';
@@ -5214,38 +5305,52 @@
                     </tr>
                 </thead>
                 <tbody>
-                    ${empleadosMes.map(reg => {
-                        const estadoInfo = obtenerEstadoEmpleado(reg.cedula);
-                        const key = `${reg.cedula}-${reg.distrito || distrito}`;
-                        const cambio = cambiosDiasPendientes[key];
-                        
-                        let diasPendientesHTML = '';
-                        if (cambio) {
-                            diasPendientesHTML = `
-                                <div style="display: flex; align-items: center; gap: 8px; justify-content: center;">
-                                    <span class="badge" style="background: #f8d7da; color: #721c24; border: 2px solid #dc3545; text-decoration: line-through;">${cambio.anterior}</span>
-                                    <i class="fas fa-arrow-right" style="color: #ff9800;"></i>
-                                    <span class="badge badge-pendientes">${cambio.nuevo}</span>
-                                </div>
-                            `;
-                        } else {
-                            diasPendientesHTML = `<span class="badge badge-pendientes">${reg.dias_pendientes || 0}</span>`;
+                    ${(empleadosMes || []).filter(reg => {
+                        // Validar que el objeto existe y tiene propiedades mínimas
+                        return reg && typeof reg === 'object' && (reg.cedula || reg.nombres);
+                    }).map(reg => {
+                        try {
+                            // Asegurar que tenemos valores válidos
+                            const cedula = reg.cedula || 'N/A';
+                            const nombres = reg.nombres || 'Sin nombre';
+                            const cargo = reg.cargo || 'N/A';
+                            const diasPendientes = reg.dias_pendientes !== undefined ? reg.dias_pendientes : 0;
+                            
+                            const estadoInfo = obtenerEstadoEmpleado(cedula);
+                            const key = `${cedula}-${reg.distrito || distrito}`;
+                            const cambio = cambiosDiasPendientes[key];
+                            
+                            let diasPendientesHTML = '';
+                            if (cambio) {
+                                diasPendientesHTML = `
+                                    <div style="display: flex; align-items: center; gap: 8px; justify-content: center;">
+                                        <span class="badge" style="background: #f8d7da; color: #721c24; border: 2px solid #dc3545; text-decoration: line-through;">${cambio.anterior}</span>
+                                        <i class="fas fa-arrow-right" style="color: #ff9800;"></i>
+                                        <span class="badge badge-pendientes">${cambio.nuevo}</span>
+                                    </div>
+                                `;
+                            } else {
+                                diasPendientesHTML = `<span class="badge badge-pendientes">${diasPendientes}</span>`;
+                            }
+                            
+                            return `
+                            <tr data-nombre="${nombres}" data-cargo="${cargo}">
+                                <td>${cedula}</td>
+                                <td>${nombres}</td>
+                                <td>${cargo}</td>
+                                <td>
+                                    <span class="estado-badge ${estadoInfo.clase}">
+                                        <i class="fas ${estadoInfo.icono}"></i>
+                                        ${estadoInfo.estado}
+                                    </span>
+                                </td>
+                                <td style="text-align: center;">${diasPendientesHTML}</td>
+                            </tr>
+                        `;
+                        } catch (err) {
+                            console.warn('Error procesando empleado:', reg, err);
+                            return '';
                         }
-                        
-                        return `
-                        <tr data-nombre="${reg.nombres || ''}" data-cargo="${reg.cargo || ''}">
-                            <td>${reg.cedula || ''}</td>
-                            <td>${reg.nombres || ''}</td>
-                            <td>${reg.cargo || ''}</td>
-                            <td>
-                                <span class="estado-badge ${estadoInfo.clase}">
-                                    <i class="fas ${estadoInfo.icono}"></i>
-                                    ${estadoInfo.estado}
-                                </span>
-                            </td>
-                            <td style="text-align: center;">${diasPendientesHTML}</td>
-                        </tr>
-                    `;
                     }).join('')}
                 </tbody>
             `;
