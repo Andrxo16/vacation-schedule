@@ -2187,12 +2187,12 @@
                 };
             }
             
-            // Buscar si tiene vacaciones próximas (dentro de los próximos 7 días)
+            // Buscar si tiene vacaciones próximas (dentro de los próximos 90 días)
             const proximasSalida = programaciones.find(prog => {
                 try {
                     const diasHasta = Math.ceil((prog.fechaInicioObj - hoy) / (1000 * 60 * 60 * 24));
                     return prog && prog.empleadoSalida && 
-                           prog.empleadoSalida.cedula === cedula && diasHasta > 0 && diasHasta <= 7;
+                           prog.empleadoSalida.cedula === cedula && diasHasta > 0 && diasHasta <= 90;
                 } catch (e) {
                     return false;
                 }
@@ -2217,12 +2217,12 @@
                 }
             }
             
-            // Buscar si va a reemplazar pronto (dentro de los próximos 7 días)
+            // Buscar si va a reemplazar pronto (dentro de los próximos 90 días)
             const proximoReemplazo = programaciones.find(prog => {
                 try {
                     const diasHasta = Math.ceil((prog.fechaInicioObj - hoy) / (1000 * 60 * 60 * 24));
                     return prog && prog.empleadoReemplazo && 
-                           prog.empleadoReemplazo.cedula === cedula && diasHasta > 0 && diasHasta <= 7;
+                           prog.empleadoReemplazo.cedula === cedula && diasHasta > 0 && diasHasta <= 90;
                 } catch (e) {
                     return false;
                 }
@@ -4276,20 +4276,30 @@
             
             // Filtrar programaciones del mes actual
             let programacionesMes = programaciones.filter(prog => {
-                const inicio = prog.fechaInicioObj;
-                const fin = prog.fechaFinObj;
-                const primerDiaMes = new Date(mesCalendario.getFullYear(), mesCalendario.getMonth(), 1);
-                const ultimoDiaMes = new Date(mesCalendario.getFullYear(), mesCalendario.getMonth() + 1, 0);
-                
-                return (inicio <= ultimoDiaMes && fin >= primerDiaMes);
+                try {
+                    const inicio = prog.fechaInicioObj || new Date(prog.fechaInicio);
+                    const fin = prog.fechaFinObj || new Date(prog.fechaFin);
+                    const primerDiaMes = new Date(mesCalendario.getFullYear(), mesCalendario.getMonth(), 1);
+                    const ultimoDiaMes = new Date(mesCalendario.getFullYear(), mesCalendario.getMonth() + 1, 0);
+                    
+                    return (inicio <= ultimoDiaMes && fin >= primerDiaMes);
+                } catch (e) {
+                    console.warn('Error procesando programación:', prog, e);
+                    return false;
+                }
             });
             
             // Filtrar por distrito
             if (distritoFiltro) {
-                programacionesMes = programacionesMes.filter(prog => 
-                    prog.empleadoSalida.distrito === distritoFiltro || 
-                    prog.empleadoReemplazo.distrito === distritoFiltro
-                );
+                programacionesMes = programacionesMes.filter(prog => {
+                    try {
+                        return prog.empleadoSalida && prog.empleadoReemplazo &&
+                               (prog.empleadoSalida.distrito === distritoFiltro || 
+                                prog.empleadoReemplazo.distrito === distritoFiltro);
+                    } catch (e) {
+                        return false;
+                    }
+                });
             }
             
             if (programacionesMes.length === 0) {
@@ -4298,38 +4308,36 @@
             }
             
             resumenDiv.innerHTML = programacionesMes.map(prog => {
-                // Asegurar formato con mes abreviado
-                let fechaInicio = prog.fechaInicio;
-                let fechaFin = prog.fechaFin;
-                
-                if (prog.fechaInicio.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
-                    fechaInicio = formatearFechaConMes(prog.fechaInicioObj);
-                }
-                if (prog.fechaFin.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
-                    fechaFin = formatearFechaConMes(prog.fechaFinObj);
-                }
-                
-                return `
-                <div class="resumen-item">
-                    <h4><i class="fas fa-calendar-day"></i> ${fechaInicio} al ${fechaFin}</h4>
-                    <div class="resumen-empleados">
-                        <div class="resumen-empleado salida">
-                            <i class="fas fa-plane-departure"></i>
-                            <strong>${prog.empleadoSalida.nombres}</strong>
-                        </div>
-                        <div style="font-size: 0.85em; color: #666; margin-left: 20px;">
-                            ${prog.empleadoSalida.cargo} - ${prog.empleadoSalida.distrito}
-                        </div>
-                        <div class="resumen-empleado reemplazo" style="margin-top: 8px;">
-                            <i class="fas fa-user-check"></i>
-                            <strong>${prog.empleadoReemplazo.nombres}</strong>
-                        </div>
-                        <div style="font-size: 0.85em; color: #666; margin-left: 20px;">
-                            ${prog.empleadoReemplazo.cargo} - ${prog.empleadoReemplazo.distrito}
+                try {
+                    // Usar directamente los objetos Date
+                    const fechaInicio = formatearFechaConMes(prog.fechaInicioObj);
+                    const fechaFin = formatearFechaConMes(prog.fechaFinObj);
+                    
+                    return `
+                    <div class="resumen-item">
+                        <h4><i class="fas fa-calendar-day"></i> ${fechaInicio} al ${fechaFin}</h4>
+                        <div class="resumen-empleados">
+                            <div class="resumen-empleado salida">
+                                <i class="fas fa-plane-departure"></i>
+                                <strong>${prog.empleadoSalida.nombres}</strong>
+                            </div>
+                            <div style="font-size: 0.85em; color: #666; margin-left: 20px;">
+                                ${prog.empleadoSalida.cargo} - ${prog.empleadoSalida.distrito}
+                            </div>
+                            <div class="resumen-empleado reemplazo" style="margin-top: 8px;">
+                                <i class="fas fa-user-check"></i>
+                                <strong>${prog.empleadoReemplazo.nombres}</strong>
+                            </div>
+                            <div style="font-size: 0.85em; color: #666; margin-left: 20px;">
+                                ${prog.empleadoReemplazo.cargo} - ${prog.empleadoReemplazo.distrito}
+                            </div>
                         </div>
                     </div>
-                </div>
-            `;
+                `;
+                } catch (e) {
+                    console.warn('Error generando resumen:', prog, e);
+                    return '';
+                }
             }).join('');
         }
         
