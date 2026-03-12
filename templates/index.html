@@ -2556,16 +2556,21 @@
                 snapshot.forEach(doc => {
                     const data = doc.data();
                     try {
-                        // Convertir fechas de vuelta a objetos Date (ser seguro con valores undefined)
                         let fechaInicio = data.fechaInicioObj;
                         let fechaFin = data.fechaFinObj;
                         
-                        // Si son strings ISO, convertir a Date
+                        // Si son strings ISO, convertir a Date usando parseo manual
                         if (typeof fechaInicio === 'string') {
-                            fechaInicio = new Date(fechaInicio);
+                            // Parsear manualmente para evitar problemas de zona horaria
+                            const partes = fechaInicio.split('T')[0].split('-');
+                            fechaInicio = new Date(parseInt(partes[0]), parseInt(partes[1]) - 1, parseInt(partes[2]), 12, 0, 0, 0);
+                            console.log(`Parsed fechaInicio: ${fechaInicio.getMonth() + 1}/${fechaInicio.getFullYear()}`);
                         }
                         if (typeof fechaFin === 'string') {
-                            fechaFin = new Date(fechaFin);
+                            // Parsear manualmente para evitar problemas de zona horaria
+                            const partes = fechaFin.split('T')[0].split('-');
+                            fechaFin = new Date(parseInt(partes[0]), parseInt(partes[1]) - 1, parseInt(partes[2]), 12, 0, 0, 0);
+                            console.log(`Parsed fechaFin: ${fechaFin.getMonth() + 1}/${fechaFin.getFullYear()}`);
                         }
                         
                         programaciones.push({
@@ -3628,8 +3633,13 @@
                 document.getElementById('tabCalendario').classList.add('active');
                 renderizarCalendario();
             } else if (tab === 'proximos') {
+                console.log('\n=== ABRIENDO PESTAÑA PROXIMOS REGRESOS ===');
                 tabs[3].classList.add('active');
                 document.getElementById('tabProximos').classList.add('active');
+                // Reinicializar al mes actual cuando se abre la pestaña
+                const hoy = new Date();
+                mesProximos = new Date(hoy.getFullYear(), hoy.getMonth(), 1, 0, 0, 0, 0);
+                console.log(`Inicializado mesProximos a: ${mesProximos.getMonth() + 1}/${mesProximos.getFullYear()}`);
                 mostrarProximosReemplazos();
             }
         }
@@ -4787,24 +4797,64 @@
         }
         
         function mostrarProximosReemplazos() {
+            console.log(`=== MOSTRAR PROXIMOS REEMPLAZOS ===`);
+            console.log(`mesProximos ANTES = ${mesProximos.getMonth()}/${mesProximos.getFullYear()}`);
+            
+            // FORZAR que mesProximos sea una fecha válida
+            if (!mesProximos || typeof mesProximos !== 'object' || isNaN(mesProximos.getTime())) {
+                console.warn('mesProximos no es válido, reinicializando');
+                mesProximos = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+            }
+            
+            // Copiar el objeto para evitar referencias circulares
+            const mesActual = new Date(mesProximos);
+            const mesNum = mesActual.getMonth();
+            const anoNum = mesActual.getFullYear();
+            
+            console.log(`USANDO: mes=${mesNum}, año=${anoNum}`);
+            
             const content = document.getElementById('proximosReemplazosContent');
             const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
             
             // Actualizar título del mes
-            document.getElementById('mesProximosActual').textContent = `${meses[mesProximos.getMonth()]} ${mesProximos.getFullYear()}`;
+            document.getElementById('mesProximosActual').textContent = `${meses[mesNum]} ${anoNum}`;
             
             // Calcular rango del mes
-            const primerDia = new Date(mesProximos.getFullYear(), mesProximos.getMonth(), 1);
-            const ultimoDia = new Date(mesProximos.getFullYear(), mesProximos.getMonth() + 1, 0);
+            const primerDia = new Date(anoNum, mesNum, 1);
+            const ultimoDia = new Date(anoNum, mesNum + 1, 0);
             
-            document.getElementById('rangoProximos').textContent = `Del ${primerDia.getDate()} al ${ultimoDia.getDate()} de ${meses[mesProximos.getMonth()]}`;
+            document.getElementById('rangoProximos').textContent = `Del ${primerDia.getDate()} al ${ultimoDia.getDate()} de ${meses[mesNum]}`;
             
             // Filtrar programaciones que TERMINAN en el mes seleccionado
+            console.log(`Buscando programaciones con mes=${mesNum}, año=${anoNum}`);
             const regresosDelMes = programaciones.filter(prog => {
-                const fechaFin = new Date(prog.fechaFinObj);
-                return fechaFin.getMonth() === mesProximos.getMonth() && 
-                       fechaFin.getFullYear() === mesProximos.getFullYear();
-            }).sort((a, b) => a.fechaFinObj - b.fechaFinObj);
+                try {
+                    const fechaFin = prog.fechaFinObj;
+                    if (!fechaFin || isNaN(fechaFin.getTime())) {
+                        console.warn('fechaFinObj inválida:', prog);
+                        return false;
+                    }
+                    const progMes = fechaFin.getMonth();
+                    const progAño = fechaFin.getFullYear();
+                    const matches = (progMes === mesNum && progAño === anoNum);
+                    
+                    if (matches) {
+                        console.log(`✓ Matcheó: ${prog.empleadoSalida.nombres} - Fin: ${progMes + 1}/${progAño}`);
+                    }
+                    return matches;
+                } catch (e) {
+                    console.warn('Error en filtrado:', prog, e);
+                    return false;
+                }
+            }).sort((a, b) => {
+                try {
+                    return a.fechaFinObj - b.fechaFinObj;
+                } catch (e) {
+                    return 0;
+                }
+            });
+            
+            console.log(`Total encontrados: ${regresosDelMes.length}`);
             
             if (regresosDelMes.length === 0) {
                 content.innerHTML = `
@@ -4888,16 +4938,9 @@
                     claseDias = 'normal';
                 }
                 
-                // Formatear fechas
-                let fechaInicioStr = prog.fechaInicio;
-                let fechaFinStr = prog.fechaFin;
-                
-                if (prog.fechaInicio.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
-                    fechaInicioStr = formatearFechaConMes(prog.fechaInicioObj);
-                }
-                if (prog.fechaFin.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
-                    fechaFinStr = formatearFechaConMes(prog.fechaFinObj);
-                }
+                // Formatear fechas - usar siempre fechaInicioObj y fechaFinObj
+                let fechaInicioStr = formatearFechaConMes(prog.fechaInicioObj);
+                let fechaFinStr = formatearFechaConMes(prog.fechaFinObj);
                 
                 html += `
                     <div class="proximo-item ${claseUrgencia}" data-distrito-salida="${prog.empleadoSalida.distrito}" data-distrito-reemplazo="${prog.empleadoReemplazo.distrito}">
@@ -4947,7 +4990,31 @@
         }
         
         function cambiarMesProximos(direccion) {
-            mesProximos.setMonth(mesProximos.getMonth() + direccion);
+            console.log(`\n>>> CAMBIAR MES: dirección=${direccion}`);
+            console.log(`ANTES: mesProximos = ${mesProximos.getMonth() + 1}/${mesProximos.getFullYear()}`);
+            
+            const mesActual = mesProximos.getMonth();
+            const anoActual = mesProximos.getFullYear();
+            
+            let nuevoMes = mesActual + direccion;
+            let nuevoAno = anoActual;
+            
+            // Manejar cambios de año
+            if (nuevoMes > 11) {
+                nuevoAno += Math.floor(nuevoMes / 12);
+                nuevoMes = nuevoMes % 12;
+            } else if (nuevoMes < 0) {
+                nuevoAno += Math.floor(nuevoMes / 12);
+                nuevoMes = (nuevoMes % 12 + 12) % 12;
+            }
+            
+            console.log(`DESPUÉS: mes=${nuevoMes + 1}, año=${nuevoAno}`);
+            
+            // Crear nueva instancia de Date con el primer día del mes
+            mesProximos = new Date(nuevoAno, nuevoMes, 1, 0, 0, 0, 0);
+            
+            console.log(`Nuevo mesProximos.getMonth() = ${mesProximos.getMonth()}, mesProximos.getFullYear() = ${mesProximos.getFullYear()}`);
+            
             mostrarProximosReemplazos();
         }
         
