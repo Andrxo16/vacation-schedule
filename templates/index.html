@@ -3818,18 +3818,27 @@
             }
             
             const empleadoSalida = empleadosFiltrados.salida[empleadoSalidaIdx];
-            const diffTime = Math.abs(fechaFin - fechaInicio);
-            const dias = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+            
+            // Calcular días HÁBILES (igual a guardarProgramacion)
+            const resultado = contarDiasHabiles(fechaInicio, fechaFin);
+            const dias = resultado.diasHabiles;
+            const diasNoHabiles = resultado.diasNoHabiles;
             
             const diasActuales = empleadoSalida.dias_pendientes;
             const diasRestantes = Math.max(0, diasActuales - dias);
+            
+            // Determinar color según dias restantes
+            let colorTexto = '#1e7a3d';
+            if (diasRestantes === 0) {
+                colorTexto = '#ff9800';
+            }
             
             resumenDiv.innerHTML = `
                 <h4><i class="fas fa-calculator"></i> Resumen de Descuento</h4>
                 <p><strong>Empleado:</strong> ${empleadoSalida.nombres}</p>
                 <p><strong>Días pendientes actuales:</strong> ${diasActuales} días</p>
-                <p><strong>Días a descontar:</strong> ${dias} días</p>
-                <p class="dias-restantes"><i class="fas fa-arrow-right"></i> Días restantes: ${diasRestantes} días</p>
+                <p><strong>Días a descontar:</strong> ${dias} días (${diasNoHabiles} domingos/festivos no cuentan)</p>
+                <p class="dias-restantes"><i class="fas fa-arrow-right"></i> Días restantes: <span style="color: ${colorTexto}; font-weight: 700;">${diasRestantes} días</span></p>
             `;
             resumenDiv.classList.add('show');
         }
@@ -3921,8 +3930,9 @@
                 diasDescontados: dias
             };
             
-            // Descontar días del empleado que sale de vacaciones (nunca negativo)
+            // Descontar días del empleado que sale de vacaciones (nunca negativo, permite llegar a 0)
             const diasAntesDescuento = empleadoSalida.dias_pendientes;
+            const diasDescontadosReales = Math.min(empleadoSalida.dias_pendientes, dias);
             empleadoSalida.dias_pendientes = Math.max(0, empleadoSalida.dias_pendientes - dias);
             
             // Actualizar en todosEmpleados
@@ -4688,18 +4698,27 @@
             }
             
             const empleadoSalida = empleadosFiltradosEdit.salida[empleadoSalidaIdx];
-            const diffTime = Math.abs(fechaFin - fechaInicio);
-            const dias = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+            
+            // Calcular días HÁBILES (igual a guardarEdicion)
+            const resultado = contarDiasHabiles(fechaInicio, fechaFin);
+            const dias = resultado.diasHabiles;
+            const diasNoHabiles = resultado.diasNoHabiles;
             
             const diasActuales = empleadoSalida.dias_pendientes;
             const diasRestantes = Math.max(0, diasActuales - dias);
+            
+            // Determinar color según dias restantes
+            let colorTexto = '#1e7a3d';
+            if (diasRestantes === 0) {
+                colorTexto = '#ff9800';
+            }
             
             resumenDiv.innerHTML = `
                 <h4><i class="fas fa-calculator"></i> Resumen de Descuento</h4>
                 <p><strong>Empleado:</strong> ${empleadoSalida.nombres}</p>
                 <p><strong>Días pendientes actuales:</strong> ${diasActuales} días</p>
-                <p><strong>Días a descontar:</strong> ${dias} días</p>
-                <p class="dias-restantes"><i class="fas fa-arrow-right"></i> Días restantes: ${diasRestantes} días</p>
+                <p><strong>Días a descontar:</strong> ${dias} días (${diasNoHabiles} domingos/festivos no cuentan)</p>
+                <p class="dias-restantes"><i class="fas fa-arrow-right"></i> Días restantes: <span style="color: ${colorTexto}; font-weight: 700;">${diasRestantes} días</span></p>
             `;
             resumenDiv.classList.add('show');
         }
