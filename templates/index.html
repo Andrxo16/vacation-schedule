@@ -2678,6 +2678,8 @@
                 footer.innerHTML = '<button class="btn-alert btn-alert-primary" onclick="cerrarAlerta()">Aceptar</button>';
                 
                 modal.classList.add('show');
+                // garantizar visibilidad si el usuario ha scrolleado
+                window.scrollTo(0,0);
                 
                 window.resolveAlerta = resolve;
             });
@@ -3785,7 +3787,7 @@
             
             // Formatear fecha de ingreso
             let fechaIngreso = empleado.f_ingreso;
-            if (fechaIngreso && fechaIngreso.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
+            if (fechaIngreso && typeof fechaIngreso === 'string' && fechaIngreso.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
                 const [dia, mes, anio] = fechaIngreso.split('/');
                 const fecha = new Date(anio, mes - 1, dia);
                 fechaIngreso = formatearFechaConMes(fecha);
@@ -3917,6 +3919,9 @@
                 return;
             }
             
+            // calcular cuánto se descontará realmente (no puede ser negativo)
+            const diasDescontadosReales = Math.min(empleadoSalida.dias_pendientes, dias);
+            
             const programacion = {
                 id: Date.now(),
                 empleadoSalida: {...empleadoSalida},
@@ -3927,13 +3932,12 @@
                 fechaFinObj: new Date(fechaFin),
                 dias,
                 diasTotales,
-                diasDescontados: dias
+                diasDescontados: diasDescontadosReales
             };
             
             // Descontar días del empleado que sale de vacaciones (nunca negativo, permite llegar a 0)
             const diasAntesDescuento = empleadoSalida.dias_pendientes;
-            const diasDescontadosReales = Math.min(empleadoSalida.dias_pendientes, dias);
-            empleadoSalida.dias_pendientes = Math.max(0, empleadoSalida.dias_pendientes - dias);
+            empleadoSalida.dias_pendientes = Math.max(0, empleadoSalida.dias_pendientes - diasDescontadosReales);
             
             // Actualizar en todosEmpleados
             const empGlobal = todosEmpleados.find(e => e.cedula === empleadoSalida.cedula);
@@ -3945,6 +3949,10 @@
             
             // Guardar en Firebase
             await guardarProgramacionEnFirebase(programacion);
+            
+            // refrescar lista de empleados desde base de datos por si quieres ver el descuento
+            await cargarEmpleadosDesdeFirebase();
+            console.log('Empleados recargados tras guardado', todosEmpleados.find(e=>e.cedula===empleadoSalida.cedula));
             
             mostrarProgramaciones();
             limpiarFormulario();
@@ -3959,6 +3967,7 @@
             }
             
             const diasFinales = empleadoSalida.dias_pendientes;
+            console.log('Mostrando alerta de confirmación...');
             await mostrarAlerta(`Programación guardada exitosamente.\n\nEmpleado que sale de vacaciones:\n• Días hábiles descontados: ${dias}\n• Días totales (incluyendo domingos/festivos): ${diasTotales}\n• Días antes: ${diasAntesDescuento}\n• Días restantes: ${diasFinales}\n\n✓ Guardado en la base de datos`, 'success', 'Programación Guardada');
         }
         
@@ -3971,17 +3980,15 @@
             }
             
             content.innerHTML = programaciones.map(prog => {
+                // seguridad: si falta información no bloqueamos todo el mapa
+                if (!prog || !prog.empleadoSalida || !prog.empleadoReemplazo) {
+                    console.warn('Programación corrupta ignorada:', prog);
+                    return '';
+                }
                 // Asegurar que las fechas estén en formato con mes abreviado
-                let fechaInicio = prog.fechaInicio;
-                let fechaFin = prog.fechaFin;
-                
-                // Si la fecha tiene formato numérico (dd/mm/yyyy), convertirla
-                if (prog.fechaInicio.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
-                    fechaInicio = formatearFechaConMes(prog.fechaInicioObj);
-                }
-                if (prog.fechaFin.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
-                    fechaFin = formatearFechaConMes(prog.fechaFinObj);
-                }
+                // usar siempre objeto Date para formateo seguro
+                const fechaInicio = formatearFechaConMes(prog.fechaInicioObj);
+                const fechaFin = formatearFechaConMes(prog.fechaFinObj);
                 
                 return `
                 <div class="programacion-item">
@@ -4376,16 +4383,9 @@
                     html += '<div class="modal-separator"></div>';
                 }
                 
-                // Asegurar formato con mes abreviado
-                let fechaInicio = prog.fechaInicio;
-                let fechaFin = prog.fechaFin;
-                
-                if (prog.fechaInicio.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
-                    fechaInicio = formatearFechaConMes(prog.fechaInicioObj);
-                }
-                if (prog.fechaFin.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
-                    fechaFin = formatearFechaConMes(prog.fechaFinObj);
-                }
+                // siempre formatear desde el objeto Date
+                const fechaInicio = formatearFechaConMes(prog.fechaInicioObj);
+                const fechaFin = formatearFechaConMes(prog.fechaFinObj);
                 
                 html += `
                     <div class="modal-vacacion">
@@ -4621,7 +4621,7 @@
             
             // Formatear fecha de ingreso
             let fechaIngreso = empleado.f_ingreso;
-            if (fechaIngreso && fechaIngreso.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
+            if (fechaIngreso && typeof fechaIngreso === 'string' && fechaIngreso.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
                 const [dia, mes, anio] = fechaIngreso.split('/');
                 const fecha = new Date(anio, mes - 1, dia);
                 fechaIngreso = formatearFechaConMes(fecha);
@@ -4758,6 +4758,8 @@
             // Eliminar programación antigua
             programaciones = programaciones.filter(p => p.id !== programacionEditando.id);
             
+            // calcular descuento real
+            const diasDescontadosReales = Math.min(empleadoSalida.dias_pendientes, dias);
             // Crear nueva programación
             const programacion = {
                 id: Date.now(),
@@ -4769,11 +4771,11 @@
                 fechaFinObj: new Date(fechaFin),
                 dias,
                 diasTotales,
-                diasDescontados: dias
+                diasDescontados: diasDescontadosReales
             };
             
             const diasAntesDescuento = empleadoSalida.dias_pendientes;
-            empleadoSalida.dias_pendientes = Math.max(0, empleadoSalida.dias_pendientes - dias);
+            empleadoSalida.dias_pendientes = Math.max(0, empleadoSalida.dias_pendientes - diasDescontadosReales);
             
             // Actualizar en todosEmpleados
             const empGlobal = todosEmpleados.find(e => e.cedula === empleadoSalida.cedula);
@@ -4785,6 +4787,9 @@
             
             // Guardar en Firebase
             await guardarProgramacionEnFirebase(programacion);
+            // recargar empleados actualizados
+            await cargarEmpleadosDesdeFirebase();
+            console.log('Empleados recargados tras edición', todosEmpleados.find(e=>e.cedula===empleadoSalida.cedula));
             
             mostrarProgramaciones();
             
@@ -4805,6 +4810,7 @@
             cerrarModalEditar();
             
             const diasFinales = empleadoSalida.dias_pendientes;
+            console.log('Mostrando alerta de actualización...');
             await mostrarAlerta(`Programación actualizada exitosamente.\n\nEmpleado que sale de vacaciones:\n• Días antes: ${diasAntesDescuento}\n• Días descontados: ${dias}\n• Días restantes: ${diasFinales}\n\n✓ Actualizado en la base de datos`, 'success', 'Programación Actualizada');
         }
         
